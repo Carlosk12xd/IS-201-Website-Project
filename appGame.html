@@ -189,9 +189,9 @@
         <p>Hold <strong>Shift</strong> for focus mode.</p>
         <p>Hold <strong>Z</strong> or <strong>Space</strong> to shoot.</p>
         <p>Every 5,000 points gives you a bonus life.</p>
-        <p>If you get hit, you respawn with 3 seconds of invincibility.</p>
+        <p>If you get hit, you explode, wait a moment, then respawn with 3 seconds of invincibility.</p>
         <p>Press <strong>P</strong> to pause.</p>
-        <button id="startBtn">Play</button>
+        <button id="overlayBtn">Play</button>
       </div>
     </div>
   </div>
@@ -205,6 +205,7 @@
   <audio id="bossMusic" src="boss.mp4" preload="auto" loop></audio>
   <audio id="bonusSfx" src="lifesfx.mp3" preload="auto"></audio>
   <audio id="pauseSfx" src="pausesfx.mp3" preload="auto"></audio>
+  <audio id="hitSfx" src="deathsfx.mp3" preload="auto"></audio>
 
   <script>
     const canvas = document.getElementById("gameCanvas");
@@ -216,15 +217,15 @@
     const timerLabelEl = document.getElementById("timerLabel");
     const bossHpEl = document.getElementById("bossHp");
     const enemyCountEl = document.getElementById("enemyCount");
-
     const overlay = document.getElementById("overlay");
+
     const stageMusic = document.getElementById("stageMusic");
     const bossMusic = document.getElementById("bossMusic");
     const bonusSfx = document.getElementById("bonusSfx");
     const pauseSfx = document.getElementById("pauseSfx");
+    const hitSfx = document.getElementById("hitSfx");
     const bgVideo = document.getElementById("bgVideo");
     const bossBgVideo = document.getElementById("bossBgVideo");
-
     const volumeSlider = document.getElementById("volumeSlider");
     const volumeValue = document.getElementById("volumeValue");
 
@@ -232,6 +233,8 @@
     const STAGE_DURATION = 120 * 60;
     const BOSS_MAX_HP = 9000;
     const BOSS_PHASE_THRESHOLDS = [0.75, 0.5, 0.25];
+    const RESPAWN_DELAY = 60;
+    const INVULN_FRAMES = 180;
 
     let animationId = null;
     let gameRunning = false;
@@ -267,6 +270,8 @@
       cooldown: 0,
       lives: 15,
       invuln: 0,
+      respawnTimer: 0,
+      isRespawning: false,
       anim: 0
     };
 
@@ -297,6 +302,7 @@
       bossMusic.volume = v;
       bonusSfx.volume = Math.min(1, v + 0.15);
       pauseSfx.volume = Math.min(1, v + 0.1);
+      hitSfx.volume = Math.min(1, v + 0.15);
       volumeValue.textContent = value + "%";
     }
 
@@ -310,11 +316,8 @@
     }
 
     function playCurrentMusic() {
-      if (phase === "boss" || phase === "boss_intro") {
-        safePlay(bossMusic);
-      } else {
-        safePlay(stageMusic);
-      }
+      if (phase === "boss" || phase === "boss_intro") safePlay(bossMusic);
+      else safePlay(stageMusic);
     }
 
     function startStageMusic() {
@@ -337,6 +340,11 @@
     function playPauseSound() {
       pauseSfx.currentTime = 0;
       safePlay(pauseSfx);
+    }
+
+    function playHitSound() {
+      hitSfx.currentTime = 0;
+      safePlay(hitSfx);
     }
 
     function setStageBackground() {
@@ -371,24 +379,35 @@
       }
     }
 
-    function spawnParticles(x, y, color, count) {
+    function spawnParticles(x, y, color, count, speedScale = 1) {
       for (let i = 0; i < count; i++) {
         particles.push({
           x, y,
-          vx: (Math.random() - 0.5) * 4,
-          vy: (Math.random() - 0.5) * 4,
+          vx: (Math.random() - 0.5) * 4 * speedScale,
+          vy: (Math.random() - 0.5) * 4 * speedScale,
           life: 20 + Math.random() * 20,
           color
         });
       }
     }
 
-    function respawnPlayer() {
+    function startRespawnSequence() {
+      player.isRespawning = true;
+      player.respawnTimer = RESPAWN_DELAY;
+      player.cooldown = 20;
+      playerBullets = [];
+      enemyBullets = [];
+      spawnParticles(player.x, player.y, "#ffffff", 20, 1.4);
+      spawnParticles(player.x, player.y, "#8ec5ff", 18, 1.8);
+      playHitSound();
+    }
+
+    function finishRespawn() {
       player.x = player.spawnX;
       player.y = player.spawnY;
-      player.invuln = 180;
-      player.cooldown = 20;
-      enemyBullets = [];
+      player.invuln = INVULN_FRAMES;
+      player.isRespawning = false;
+      player.respawnTimer = 0;
       addBanner("Invincible for 3 seconds", 120);
     }
 
@@ -414,6 +433,8 @@
       player.cooldown = 0;
       player.lives = 15;
       player.invuln = 0;
+      player.respawnTimer = 0;
+      player.isRespawning = false;
       player.anim = 0;
 
       boss.active = false;
@@ -487,7 +508,7 @@
           "Hold <strong>Shift</strong> for focus mode.",
           "Hold <strong>Z</strong> or <strong>Space</strong> to shoot.",
           "Every 5,000 points gives you a bonus life.",
-          "If you get hit, you respawn with 3 seconds of invincibility.",
+          "If you get hit, you explode, wait a moment, then respawn with 3 seconds of invincibility.",
           "Press <strong>P</strong> to pause."
         ],
         "Play",
@@ -538,10 +559,6 @@
       );
     }
 
-    volumeSlider.addEventListener("input", () => applyVolume(parseInt(volumeSlider.value, 10)));
-    applyVolume(parseInt(volumeSlider.value, 10));
-    showStartPanel();
-
     window.addEventListener("keydown", (e) => {
       const key = e.key.toLowerCase();
 
@@ -587,6 +604,7 @@
     }
 
     function shootPlayer() {
+      if (player.isRespawning) return;
       const firing = keys["z"] || keys[" "];
       if (!firing) return;
 
@@ -607,6 +625,13 @@
     }
 
     function updatePlayer() {
+      if (player.respawnTimer > 0) {
+        player.respawnTimer--;
+        player.anim += 0.2;
+        if (player.respawnTimer === 0) finishRespawn();
+        return;
+      }
+
       const up = keys["arrowup"] || keys["w"];
       const down = keys["arrowdown"] || keys["s"];
       const left = keys["arrowleft"] || keys["a"];
@@ -645,11 +670,9 @@
 
       if (type === "pink") {
         cfg = { hp: 6, speedY: 0.62, speedX: 1.25, bulletSpeed: 1.15, color: "#ff8fb1", shotDelay: 82, fireCooldownMin: 155, fireCooldownRange: 75 };
-      }
-      if (type === "green") {
+      } else if (type === "green") {
         cfg = { hp: 7, speedY: 0.5, speedX: 1.0, bulletSpeed: 0.98, color: "#7cf5c8", shotDelay: 90, fireCooldownMin: 150, fireCooldownRange: 80 };
-      }
-      if (type === "gold") {
+      } else if (type === "gold") {
         cfg = { hp: 9, speedY: 0.46, speedX: 1.35, bulletSpeed: 1.18, color: "#ffd166", shotDelay: 98, fireCooldownMin: 145, fireCooldownRange: 85 };
       }
 
@@ -1021,6 +1044,8 @@
     }
 
     function updateEnemyBullets() {
+      if (player.isRespawning) return;
+
       for (let i = enemyBullets.length - 1; i >= 0; i--) {
         const b = enemyBullets[i];
         b.x += b.vx;
@@ -1033,15 +1058,14 @@
         if (player.invuln <= 0 && Math.hypot(dx, dy) < b.r + hitRadius) {
           player.lives--;
           enemyBullets.splice(i, 1);
-          spawnParticles(player.x, player.y, "#ffffff", 18);
-
           if (player.lives <= 0) {
+            spawnParticles(player.x, player.y, "#ffffff", 24, 1.8);
+            playHitSound();
             endGame(false);
             return;
           }
-
-          respawnPlayer();
-          continue;
+          startRespawnSequence();
+          return;
         }
 
         if (b.x < -40 || b.x > canvas.width + 40 || b.y < -40 || b.y > canvas.height + 40) {
@@ -1092,6 +1116,7 @@
     }
 
     function drawPlayer() {
+      if (player.isRespawning) return;
       const flashing = player.invuln > 0 && Math.floor(player.invuln / 8) % 2 === 0;
       if (flashing) return;
 
@@ -1348,7 +1373,9 @@
       animationId = requestAnimationFrame(loop);
     }
 
-    // Initial render
+    applyVolume(parseInt(volumeSlider.value, 10));
+    volumeSlider.addEventListener("input", () => applyVolume(parseInt(volumeSlider.value, 10)));
+    showStartPanel();
     updateHud();
     drawScene();
   </script>
