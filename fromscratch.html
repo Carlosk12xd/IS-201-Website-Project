@@ -3,9 +3,138 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title></title>
+    <title>Carlos Knight | Main Page</title>
+    <link rel="stylesheet" href="css/epicStyles.css">
 </head>
-<body>
-    <!-- From scratch page links to the professional one and AI one.-->
+<body id="top">
+
+    <div class="header">
+        <h1>Carlos Knight</h1>
+        <h2>Main Page</h2>
+    </div>
+
+    <div class="nav-box">
+        <h3>Site Navigation</h3>
+        <ul>
+            <li><a href="Resume_CarlosK.html">Professional Resume Page</a></li>
+            <li><a href="appGame.html">Web App Page</a></li>
+            <li><a href="#hobbies">Jump to My Interests</a></li>
+            <li><a href="#media">Jump to Media Section</a></li>
+            <li><a href="#tableau">Jump to Tableau Graph</a></li>
+        </ul>
+    </div>
+
+    <div class="content-box">
+        <h3>About This Page</h3>
+        <p>
+            This page is about my interests in technology, fintech, and learning how business and
+            data work together. 
+        </p>
+    </div>
+
+    <div class="content-box" id="hobbies">
+        <h3>My Interests</h3>
+        <ol>
+            <li>Technology
+                <ul>
+                    <li>Programming</li>
+                    <li>Web Development</li>
+                    <li>Data Analysis</li>
+                </ul>
+            </li>
+            <li>Finance
+                <ul>
+                    <li>Fintech</li>
+                    <li>Financial systems</li>
+                    <li>Business strategy</li>
+                </ul>
+            </li>
+            <li>Personal Growth
+                <ul>
+                    <li>Learning new skills</li>
+                    <li>Career development</li>
+                    <li>Problem solving</li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+
+    <div class="image-box">
+        <h3>Featured Image</h3>
+        <img src="assets/img/shiba_inu.webp" alt="Fintech themed background image">
+        <p>I love shiba inus</p>
+    </div>
+
+<div class="content-box" id="media">
+    <h3>Video Section</h3>
+    <p>
+        Cool video from one of my favorite youtubers.
+    </p>
+
+    <div class="video-container">
+        <iframe
+            width="560"
+            height="315"
+            src="https://www.youtube.com/embed/GZTr1-Gp74U"
+            title="YouTube video player"
+            frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowfullscreen>
+        </iframe>
+    </div>
+</div>
+
+    <div class="content-box" id="tableau">
+    <h3>Interactive Tableau Graph</h3>
+    <p>
+        Since I am especially interested in fintech, I chose a cryptocurrency dashboard. It connects well with my interest in finance, technology, and data analysis.
+    </p>
+
+    <div class='tableauPlaceholder' id='vizCrypto' style='position: relative'>
+        <noscript>
+            <a href='https://public.tableau.com/views/CryptocurrencyAnalysis2021-2024/DashboardUpdated?:showVizHome=no'>
+                <img
+                    alt='Cryptocurrency Analysis 2021-2024 Dashboard'
+                    src='https://public.tableau.com/static/images/Cr/CryptocurrencyAnalysis2021-2024/DashboardUpdated/1.png'
+                    style='border: none' />
+            </a>
+        </noscript>
+
+        <object class='tableauViz' style='display:none;'>
+            <param name='host_url' value='https%3A%2F%2Fpublic.tableau.com%2F' />
+            <param name='embed_code_version' value='3' />
+            <param name='site_root' value='' />
+            <param name='name' value='CryptocurrencyAnalysis2021-2024/DashboardUpdated' />
+            <param name='tabs' value='no' />
+            <param name='toolbar' value='yes' />
+            <param name='showVizHome' value='no' />
+            <param name='static_image' value='https://public.tableau.com/static/images/Cr/CryptocurrencyAnalysis2021-2024/DashboardUpdated/1.png' />
+            <param name='animate_transition' value='yes' />
+            <param name='display_static_image' value='yes' />
+            <param name='display_spinner' value='yes' />
+            <param name='display_overlay' value='yes' />
+            <param name='display_count' value='yes' />
+            <param name='language' value='en-US' />
+        </object>
+    </div>
+
+    <script type='text/javascript'>
+        var divElement = document.getElementById('vizCrypto');
+        var vizElement = divElement.getElementsByTagName('object')[0];
+        vizElement.style.width = '100%';
+        vizElement.style.height = '700px';
+
+        var scriptElement = document.createElement('script');
+        scriptElement.src = 'https://public.tableau.com/javascripts/api/viz_v1.js';
+        vizElement.parentNode.insertBefore(scriptElement, vizElement);
+    </script>
+</div>
+
+    <div class="footer-box">
+        <p><a href="#top">Back to Top</a></p>
+        <p><a href="Resume_CarlosK.html">Back to Professional Resume Page</a></p>
+        <p><a href="appGame.html">Go to My Web App</a></p>
+    </div>
+
 </body>
-</html> 
+</html>
