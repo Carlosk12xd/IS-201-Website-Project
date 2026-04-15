@@ -328,7 +328,7 @@
     Hold Z or Space to shoot. Press P to pause or resume. On phones, on-screen controls appear automatically.
   </div>
 
-  <div class="mobile-controls" id="mobileControls">
+  <div class="mobile-controls" id="mobileControls" style="display:none;">
     <div class="mobile-pad">
       <button class="mobile-btn mobile-up" data-key="arrowup">▲</button>
       <button class="mobile-btn mobile-left" data-key="arrowleft">◀</button>
@@ -730,18 +730,21 @@
     const mobileControls = document.getElementById("mobileControls");
 
     function detectMobileMode() {
+      const ua = navigator.userAgent || navigator.vendor || "";
+      const mobileUA = /iPhone|iPad|iPod|Android|Mobile|CriOS|FxiOS|EdgiOS|OPiOS|SamsungBrowser/i.test(ua);
       const touchCapable =
         ("ontouchstart" in window) ||
         (navigator.maxTouchPoints && navigator.maxTouchPoints > 0) ||
-        window.matchMedia("(pointer: coarse)").matches;
+        (window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
 
-      const smallScreen = window.innerWidth <= 820;
-      const mobileMode = touchCapable || smallScreen;
+      const smallScreen = Math.min(window.innerWidth || 9999, window.innerHeight || 9999) <= 900;
+      const mobileMode = mobileUA || touchCapable || smallScreen;
 
       document.body.classList.toggle("mobile-mode", mobileMode);
       if (mobileControls) {
-        mobileControls.style.display = mobileMode ? "flex" : "";
+        mobileControls.style.display = mobileMode ? "flex" : "none";
       }
+      return mobileMode;
     }
 
     function setTouchKey(key, isDown, button = null) {
@@ -781,6 +784,8 @@
 
     mobileButtons.forEach(bindTouchButton);
     detectMobileMode();
+    window.addEventListener("load", detectMobileMode);
+    document.addEventListener("DOMContentLoaded", detectMobileMode);
     window.addEventListener("resize", detectMobileMode);
     window.addEventListener("orientationchange", detectMobileMode);
 
