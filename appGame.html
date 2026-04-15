@@ -963,6 +963,44 @@
       });
     }
 
+
+    function startGame() {
+      resetGame();
+      overlay.style.display = "none";
+      gameRunning = true;
+      isPaused = false;
+      startStageMusic();
+      bgVideo.play().catch(() => {});
+      bossBgVideo.play().catch(() => {});
+      cancelAnimationFrame(animationId);
+      lastTimestamp = 0;
+      accumulator = 0;
+      loop();
+    }
+
+    function pauseGame() {
+      if (!gameRunning || isPaused) return;
+      isPaused = true;
+      playPauseSound();
+      stageMusic.pause();
+      bossMusic.pause();
+      renderOverlay(
+        "Paused",
+        ["Press <strong>P</strong> to resume."],
+        [
+          { text: "Resume", onClick: resumeGame },
+          { text: "Main Menu", onClick: showStartPanel, secondary: true }
+        ]
+      );
+    }
+
+    function resumeGame() {
+      if (!gameRunning || !isPaused) return;
+      isPaused = false;
+      overlay.style.display = "none";
+      playCurrentMusic();
+    }
+
     function endGame(win) {
       gameRunning = false;
       isPaused = false;
