@@ -282,13 +282,13 @@
     <a href="Resume_CarlosK.html">Resume Page</a>
   </div>
 
-  <p>Clear four 120-second stages, earn bonus lives, then survive a long multi-phase boss fight.</p>
+  <p>Clear four 100-second stages, earn bonus lives, then survive a long multi-phase boss fight.</p>
 
   <div class="hud">
     <div class="hud-box">Score: <span id="score">0</span></div>
     <div class="hud-box">Lives: <span id="lives">15</span></div>
     <div class="hud-box">Phase: <span id="phaseLabel">Stage 1</span></div>
-    <div class="hud-box">Time: <span id="timerLabel">120</span></div>
+    <div class="hud-box">Time: <span id="timerLabel">100</span></div>
     <div class="hud-box">Boss HP: <span id="bossHp">--</span></div>
     <div class="hud-box">Enemies: <span id="enemyCount">0</span></div>
 
@@ -347,7 +347,7 @@
   <audio id="bonusSfx" src="lifesfx.mp3" preload="auto"></audio>
   <audio id="pauseSfx" src="pausesfx.mp3" preload="auto"></audio>
   <audio id="hitSfx" src="deathsfx.mp3" preload="auto"></audio>
-
+  <audio id="phaseSfx" src="attackPhase.mp3" preload="auto"></audio>
   <script>
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
@@ -365,15 +365,17 @@
     const bonusSfx = document.getElementById("bonusSfx");
     const pauseSfx = document.getElementById("pauseSfx");
     const hitSfx = document.getElementById("hitSfx");
+    const phaseSfx = document.getElementById("phaseSfx");
     const bgVideo = document.getElementById("bgVideo");
     const bossBgVideo = document.getElementById("bossBgVideo");
     const volumeSlider = document.getElementById("volumeSlider");
     const volumeValue = document.getElementById("volumeValue");
 
     const TOTAL_STAGES = 4;
-    const STAGE_DURATION = 120 * 60;
-    const BOSS_MAX_HP = 9000;
-    const BOSS_PHASE_THRESHOLDS = [0.75, 0.5, 0.25];
+    const STAGE_DURATION = 100 * 60;
+    const PHASE_HP = 50;
+    const BOSS_MAX_HP = PHASE_HP * 4;
+    const BOSS_PHASE_THRESHOLDS = [150, 100, 50];
     const RESPAWN_DELAY = 60;
     const INVULN_FRAMES = 180;
 
@@ -386,6 +388,7 @@
     let lastTimestamp = 0;
     let accumulator = 0;
     const FIXED_STEP = 1000 / 144;
+    const MAX_STEPS_PER_FRAME = 4;
 
     let stars = [];
     let playerBullets = [];
@@ -426,6 +429,8 @@
       r: 28,
       hp: BOSS_MAX_HP,
       maxHp: BOSS_MAX_HP,
+      phaseHp: PHASE_HP,
+      phaseHpMax: PHASE_HP,
       dir: 1,
       timer: 0,
       phaseIndex: 1,
@@ -447,6 +452,7 @@
       bonusSfx.volume = Math.min(1, v + 0.15);
       pauseSfx.volume = Math.min(1, v + 0.1);
       hitSfx.volume = Math.min(1, v + 0.15);
+      phaseSfx.volume = Math.min(1, v + 0.12);
       volumeValue.textContent = value + "%";
     }
 
@@ -489,6 +495,11 @@
     function playHitSound() {
       hitSfx.currentTime = 0;
       safePlay(hitSfx);
+    }
+
+    function playPhaseSound() {
+      phaseSfx.currentTime = 0;
+      safePlay(phaseSfx);
     }
 
     function setStageBackground() {
@@ -588,6 +599,8 @@
       boss.y = 110;
       boss.hp = BOSS_MAX_HP;
       boss.maxHp = BOSS_MAX_HP;
+      boss.phaseHp = PHASE_HP;
+      boss.phaseHpMax = PHASE_HP;
       boss.dir = 1;
       boss.timer = 0;
       boss.phaseIndex = 1;
@@ -630,7 +643,7 @@
         timerLabelEl.textContent = boss.patternActive ? Math.max(0, Math.ceil(boss.patternDuration / 60)) : "";
       }
 
-      bossHpEl.textContent = boss.active ? Math.max(0, Math.ceil(boss.hp)) : "--";
+      bossHpEl.textContent = boss.active ? Math.max(0, Math.ceil(boss.phaseHp)) : "--";
       enemyCountEl.textContent = enemies.length;
     }
 
@@ -1013,22 +1026,26 @@
     }
 
     function startBossPhase(phaseIndex) {
+      playPhaseSound();
       boss.phaseIndex = phaseIndex;
       boss.patternActive = false;
       boss.vulnerable = false;
-      boss.telegraphTimer = 180;
+      boss.telegraphTimer = 250;
       boss.patternDuration = 420;
-      boss.transitionTimer = 140;
+      boss.transitionTimer = 280;
+      boss.phaseHp = PHASE_HP;
+      boss.phaseHpMax = PHASE_HP;
       enemyBullets = [];
+      playerBullets = [];
 
       if (phaseIndex === 1) {
         boss.patternId = 1;
-        boss.patternName = "Phase 1 - Petal Ring";
+        boss.patternName = "Phase 1 - Lunar Wheel";
         boss.dir = 1;
         bossClones = [];
       } else if (phaseIndex === 2) {
         boss.patternId = 2;
-        boss.patternName = "Phase 2 - Emerald Spiral";
+        boss.patternName = "Phase 2 - Medicine Helix";
         boss.dir = 1;
         bossClones = [];
       } else if (phaseIndex === 3) {
@@ -1037,12 +1054,11 @@
         setupMirageClones();
       } else {
         boss.patternId = 4;
-        boss.patternName = "Phase 4 - Scarlet Collapse";
+        boss.patternName = "Phase 4 - Scarlet Moon";
         boss.dir = 1;
         bossClones = [];
       }
 
-      addBanner("Boss Phase " + phaseIndex, 150);
       addWarning(boss.patternName, 180);
     }
 
@@ -1060,10 +1076,9 @@
     }
 
     function handleBossPhaseTransitions() {
-      const ratio = boss.hp / boss.maxHp;
-      if (boss.phaseIndex === 1 && ratio <= BOSS_PHASE_THRESHOLDS[0]) startBossPhase(2);
-      else if (boss.phaseIndex === 2 && ratio <= BOSS_PHASE_THRESHOLDS[1]) startBossPhase(3);
-      else if (boss.phaseIndex === 3 && ratio <= BOSS_PHASE_THRESHOLDS[2]) startBossPhase(4);
+      if (boss.phaseIndex === 1 && boss.hp <= BOSS_PHASE_THRESHOLDS[0]) startBossPhase(2);
+      else if (boss.phaseIndex === 2 && boss.hp <= BOSS_PHASE_THRESHOLDS[1]) startBossPhase(3);
+      else if (boss.phaseIndex === 3 && boss.hp <= BOSS_PHASE_THRESHOLDS[2]) startBossPhase(4);
     }
 
     function radialBurst(x, y, count, speed, color, offset = 0) {
@@ -1101,14 +1116,12 @@
       } else if (boss.phaseIndex === 3) {
         boss.mirageShuffleTimer--;
         if (boss.mirageShuffleTimer <= 0) {
-          addWarning("Mirage Shift", 120);
           setupMirageClones();
         }
       } else if (boss.phaseIndex === 4) {
         if (boss.timer % 140 === 0) {
           boss.x = 140 + Math.random() * 520;
           boss.y = 85 + Math.random() * 120;
-          addWarning("Scarlet Jump", 90);
         }
         boss.x += Math.sin(boss.timer * 0.09) * 0.8;
       }
@@ -1116,41 +1129,107 @@
 
     function updateBossPatterns() {
       if (boss.patternId === 1) {
-        if (boss.timer % 30 === 0) radialBurst(boss.x, boss.y, 14, 1.65, "#ff8fab", frame * 0.015);
-        if (boss.timer % 120 === 0) aimedShotSpread(6, 1.95, 0.18, "#ffd166");
+        // Elegant lunar wheel: alternating moon beads and silver lines
+        if (boss.timer % 26 === 0) {
+          for (let i = 0; i < 18; i++) {
+            const angle = (Math.PI * 2 * i) / 18 + frame * 0.012;
+            const speed = i % 2 === 0 ? 1.35 : 1.75;
+            enemyBullets.push({
+              x: boss.x,
+              y: boss.y,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              r: i % 2 === 0 ? 6 : 4,
+              color: i % 2 === 0 ? "#d7d1ff" : "#ffd6ea"
+            });
+          }
+        }
+        if (boss.timer % 92 === 0) {
+          aimedShotSpread(7, 1.9, 0.11, "#fff1b3");
+        }
       }
 
       if (boss.patternId === 2) {
-        if (boss.timer % 9 === 0) {
-          const angle = boss.timer * 0.12;
-          enemyBullets.push({ x: boss.x, y: boss.y, vx: Math.cos(angle) * 1.8, vy: Math.sin(angle) * 1.8, r: 5, color: "#7cf5c8" });
-          enemyBullets.push({ x: boss.x, y: boss.y, vx: Math.cos(angle + Math.PI) * 1.8, vy: Math.sin(angle + Math.PI) * 1.8, r: 5, color: "#7cf5c8" });
+        // Medicine helix: twin spirals and soft halo rings
+        if (boss.timer % 8 === 0) {
+          const angle = boss.timer * 0.14;
+          enemyBullets.push({
+            x: boss.x, y: boss.y,
+            vx: Math.cos(angle) * 1.65,
+            vy: Math.sin(angle) * 1.65,
+            r: 5, color: "#98f4d0"
+          });
+          enemyBullets.push({
+            x: boss.x, y: boss.y,
+            vx: Math.cos(angle + Math.PI) * 1.65,
+            vy: Math.sin(angle + Math.PI) * 1.65,
+            r: 5, color: "#ccb8ff"
+          });
         }
-        if (boss.timer % 95 === 0) radialBurst(boss.x, boss.y, 20, 1.25, "#c9a0ff", 0);
+        if (boss.timer % 72 === 0) {
+          for (let i = 0; i < 14; i++) {
+            const angle = (Math.PI * 2 * i) / 14 + frame * 0.02;
+            enemyBullets.push({
+              x: boss.x, y: boss.y,
+              vx: Math.cos(angle) * 1.15,
+              vy: Math.sin(angle) * 1.15,
+              r: 6, color: "#fff0aa"
+            });
+          }
+        }
       }
 
       if (boss.patternId === 3) {
-        for (const c of bossClones) {
-          if (boss.timer % 55 === 0) aimedShotSpread(3, c.real ? 2.0 : 1.6, 0.22, c.real ? "#ffdd88" : "#c9a0ff", c.x, c.y);
-          if (boss.timer % 100 === 0 && c.real) radialBurst(c.x, c.y, 16, 1.45, "#ff8fab", frame * 0.01);
+        // Mirage divide: clones are visual decoys, but bullets always come from the real boss
+        if (boss.timer % 58 === 0) {
+          aimedShotSpread(5, 1.95, 0.16, "#ffe3ab", boss.x, boss.y);
+        }
+        if (boss.timer % 105 === 0) {
+          for (let i = 0; i < 16; i++) {
+            const angle = (Math.PI * 2 * i) / 16 + frame * 0.012;
+            enemyBullets.push({
+              x: boss.x, y: boss.y,
+              vx: Math.cos(angle) * 1.35,
+              vy: Math.sin(angle) * 1.35,
+              r: 6,
+              color: i % 2 === 0 ? "#ffd8ea" : "#d8d3ff"
+            });
+          }
         }
       }
 
       if (boss.patternId === 4) {
-        if (boss.timer % 11 === 0) {
-          const spread = 10;
-          for (let i = 0; i < spread; i++) {
-            const angle = Math.PI / 2 + (i - 4.5) * 0.1;
+        // Scarlet moon: layered crescent fans with collapsing rings
+        if (boss.timer % 15 === 0) {
+          const layers = [1.55, 1.95];
+          for (const speed of layers) {
+            for (let i = 0; i < 7; i++) {
+              const angle = Math.PI / 2 + (i - 3) * 0.14 + Math.sin(frame * 0.03) * 0.08;
+              enemyBullets.push({
+                x: boss.x, y: boss.y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                r: speed < 1.8 ? 6 : 4,
+                color: speed < 1.8 ? "#ffbfd9" : "#c8d6ff"
+              });
+            }
+          }
+        }
+        if (boss.timer % 88 === 0) {
+          aimedShotSpread(7, 1.95, 0.12, "#fff0b8");
+        }
+        if (boss.timer % 150 === 0) {
+          for (let i = 0; i < 14; i++) {
+            const angle = (Math.PI * 2 * i) / 14 + frame * 0.016;
             enemyBullets.push({
               x: boss.x, y: boss.y,
-              vx: Math.cos(angle) * 1.9 + Math.sin(frame * 0.05) * 0.28,
-              vy: Math.sin(angle) * 1.9,
-              r: 6, color: "#ff8fb1"
+              vx: Math.cos(angle) * 1.25,
+              vy: Math.sin(angle) * 1.25,
+              r: 5,
+              color: i % 2 === 0 ? "#ffe0f3" : "#d7cfff"
             });
           }
         }
-        if (boss.timer % 70 === 0) aimedShotSpread(8, 2.2, 0.13, "#8ec5ff");
-        if (boss.timer % 145 === 0) radialBurst(boss.x, boss.y, 24, 1.35, "#ffd166", frame * 0.02);
       }
     }
 
@@ -1183,7 +1262,6 @@
           boss.patternActive = false;
           boss.vulnerable = false;
           boss.telegraphTimer = 180;
-          addWarning(boss.patternName, 180);
         }
       }
 
@@ -1239,7 +1317,9 @@
           const dx = b.x - boss.x;
           const dy = b.y - boss.y;
           if (Math.hypot(dx, dy) < boss.r + b.r) {
-            boss.hp -= b.damage * 0.22;
+            const dealt = b.damage * 0.22;
+            boss.hp -= dealt;
+            boss.phaseHp = Math.max(0, boss.phaseHp - dealt);
             addScore(12);
             spawnParticles(b.x, b.y, "#9fd3ff", 3);
             playerBullets.splice(i, 1);
@@ -1455,7 +1535,7 @@
       ctx.fillRect(x, y, barW, barH);
 
       ctx.fillStyle = "#ff7aa8";
-      ctx.fillRect(x, y, barW * Math.max(0, boss.hp / boss.maxHp), barH);
+      ctx.fillRect(x, y, barW * Math.max(0, boss.phaseHp / boss.phaseHpMax), barH);
 
       ctx.strokeStyle = "#ffffff";
       ctx.strokeRect(x, y, barW, barH);
@@ -1495,10 +1575,6 @@
       if (phase === "stage") {
         ctx.fillText("Stage " + stageIndex + " / " + TOTAL_STAGES, 20, 30);
       } else if (phase === "boss_intro") {
-        ctx.font = "30px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText("Boss Approaching...", canvas.width / 2, canvas.height / 2);
-        ctx.textAlign = "left";
       } else if (phase === "boss") {
         ctx.fillText("Boss Fight", 20, 30);
       }
@@ -1587,9 +1663,14 @@
       accumulator += delta;
 
       if (!isPaused) {
-        while (accumulator >= FIXED_STEP) {
+        let steps = 0;
+        while (accumulator >= FIXED_STEP && steps < MAX_STEPS_PER_FRAME) {
           runFixedStep();
           accumulator -= FIXED_STEP;
+          steps++;
+        }
+        if (steps === MAX_STEPS_PER_FRAME && accumulator > FIXED_STEP * 2) {
+          accumulator = FIXED_STEP;
         }
       } else {
         accumulator = 0;
