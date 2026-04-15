@@ -242,6 +242,9 @@
     let frame = 0;
     let score = 0;
     let nextBonusLifeScore = 5000;
+    let lastTimestamp = 0;
+    let accumulator = 0;
+    const FIXED_STEP = 1000 / 144;
 
     let stars = [];
     let playerBullets = [];
@@ -427,6 +430,8 @@
       stageIndex = 1;
       stageFrame = 0;
       bossIntroTimer = 240;
+      lastTimestamp = 0;
+      accumulator = 0;
 
       player.x = player.spawnX;
       player.y = player.spawnY;
@@ -524,6 +529,8 @@
       bgVideo.play().catch(() => {});
       bossBgVideo.play().catch(() => {});
       cancelAnimationFrame(animationId);
+      lastTimestamp = 0;
+      accumulator = 0;
       loop();
     }
 
@@ -1350,22 +1357,38 @@
       drawWarnings();
     }
 
-    function loop() {
+    function runFixedStep() {
+      frame++;
+      updateStars();
+      updatePlayer();
+      updateStage();
+      updateBossIntro();
+      updateBoss();
+      updatePlayerBullets();
+      updateEnemyBullets();
+      updateParticles();
+      updateBanners();
+      updateWarnings();
+      updateHud();
+    }
+
+    function loop(timestamp = 0) {
       if (!gameRunning) return;
 
+      if (!lastTimestamp) lastTimestamp = timestamp;
+      let delta = timestamp - lastTimestamp;
+      lastTimestamp = timestamp;
+
+      if (delta > 100) delta = 100;
+      accumulator += delta;
+
       if (!isPaused) {
-        frame++;
-        updateStars();
-        updatePlayer();
-        updateStage();
-        updateBossIntro();
-        updateBoss();
-        updatePlayerBullets();
-        updateEnemyBullets();
-        updateParticles();
-        updateBanners();
-        updateWarnings();
-        updateHud();
+        while (accumulator >= FIXED_STEP) {
+          runFixedStep();
+          accumulator -= FIXED_STEP;
+        }
+      } else {
+        accumulator = 0;
       }
 
       drawScene();
