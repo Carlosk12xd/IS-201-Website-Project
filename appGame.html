@@ -204,6 +204,40 @@
     .mobile-right { grid-area: right; }
     .mobile-down { grid-area: down; }
 
+    body.mobile-mode {
+      padding: 12px;
+    }
+
+    body.mobile-mode h1 {
+      font-size: 1.5rem;
+    }
+
+    body.mobile-mode .hud {
+      gap: 8px;
+    }
+
+    body.mobile-mode .hud-box,
+    body.mobile-mode .volume-box {
+      min-width: 110px;
+      padding: 8px 10px;
+      font-size: 0.92rem;
+    }
+
+    body.mobile-mode #gameWrapper {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 4 / 3;
+    }
+
+    body.mobile-mode .top-links a {
+      display: inline-block;
+      margin: 4px 8px;
+    }
+
+    body.mobile-mode .mobile-controls {
+      display: flex;
+    }
+
     @media (max-width: 820px), (pointer: coarse) {
       body {
         padding: 12px;
@@ -693,6 +727,22 @@
     });
 
     const mobileButtons = Array.from(document.querySelectorAll(".mobile-btn"));
+    const mobileControls = document.getElementById("mobileControls");
+
+    function detectMobileMode() {
+      const touchCapable =
+        ("ontouchstart" in window) ||
+        (navigator.maxTouchPoints && navigator.maxTouchPoints > 0) ||
+        window.matchMedia("(pointer: coarse)").matches;
+
+      const smallScreen = window.innerWidth <= 820;
+      const mobileMode = touchCapable || smallScreen;
+
+      document.body.classList.toggle("mobile-mode", mobileMode);
+      if (mobileControls) {
+        mobileControls.style.display = mobileMode ? "flex" : "";
+      }
+    }
 
     function setTouchKey(key, isDown, button = null) {
       keys[key] = isDown;
@@ -730,6 +780,9 @@
     }
 
     mobileButtons.forEach(bindTouchButton);
+    detectMobileMode();
+    window.addEventListener("resize", detectMobileMode);
+    window.addEventListener("orientationchange", detectMobileMode);
 
     function findClosestEnemy(x, y) {
       let best = null;
