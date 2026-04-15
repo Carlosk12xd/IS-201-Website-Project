@@ -136,6 +136,52 @@
       cursor: pointer;
     }
     .panel button:hover { background: #9dbdff; }
+    .panel .button-row {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+    .panel button.secondary {
+      background: rgba(255,255,255,0.12);
+      color: #e6f1ff;
+      border: 1px solid rgba(180,210,255,0.35);
+    }
+    .panel button.secondary:hover {
+      background: rgba(255,255,255,0.2);
+    }
+    .panel input {
+      width: 100%;
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(180,210,255,0.35);
+      background: rgba(255,255,255,0.08);
+      color: white;
+      font-size: 1rem;
+    }
+    .leaderboard-table {
+      width: 100%;
+      margin-top: 16px;
+      border-collapse: collapse;
+      font-size: 0.98rem;
+    }
+    .leaderboard-table th,
+    .leaderboard-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.12);
+      text-align: left;
+    }
+    .leaderboard-table th:last-child,
+    .leaderboard-table td:last-child {
+      text-align: right;
+    }
+    .leaderboard-status {
+      margin-top: 12px;
+      min-height: 24px;
+      color: #cfe3ff;
+    }
 
     .controls {
       margin-top: 14px;
@@ -318,7 +364,10 @@
         <p>Every 5,000 points gives you a bonus life.</p>
         <p>If you get hit, you explode.</p>
         <p>Press <strong>P</strong> to pause.</p>
-        <button id="overlayBtn">Play</button>
+        <div class="button-row">
+          <button id="overlayBtn">Play</button>
+          <button class="secondary" id="leaderboardMenuBtn">Leaderboard</button>
+        </div>
       </div>
     </div>
   </div>
@@ -371,6 +420,9 @@
     const volumeSlider = document.getElementById("volumeSlider");
     const volumeValue = document.getElementById("volumeValue");
 
+    const SUPABASE_URL = "https://bjsjkclmxldrcenyhxtn.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_3sXOMG68X9AHhfRHFDVk5Q_SLksWg9j";
+    const SUPABASE_TABLE = "leaderboard";
     const TOTAL_STAGES = 4;
     const STAGE_DURATION = 100 * 60;
     const PHASE_HP = 50;
@@ -380,6 +432,7 @@
     const INVULN_FRAMES = 180;
 
     let animationId = null;
+    let lastSubmittedScore = null;
     let gameRunning = false;
     let isPaused = false;
     let frame = 0;
@@ -647,16 +700,192 @@
       enemyCountEl.textContent = enemies.length;
     }
 
-    function renderOverlay(title, lines, buttonText, buttonHandler) {
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function hasSupabaseConfig() {
+      return (
+        SUPABASE_URL &&
+        SUPABASE_ANON_KEY &&
+        !SUPABASE_URL.includes("PASTE_YOUR_SUPABASE_URL_HERE") &&
+        !SUPABASE_ANON_KEY.includes("PASTE_YOUR_SUPABASE_PUBLISHABLE_ANON_KEY_HERE")
+      );
+    }
+
+    function getSavedPlayerName() {
+      return localStorage.getItem("bulletHellPlayerName") || "";
+    }
+
+    function savePlayerName(name) {
+      localStorage.setItem("bulletHellPlayerName", name);
+    }
+
+    function renderOverlay(title, lines, buttons = []) {
       overlay.innerHTML = `
         <div class="panel">
           <h2>${title}</h2>
           ${lines.map(line => `<p>${line}</p>`).join("")}
-          ${buttonText ? `<button id="overlayBtn">${buttonText}</button>` : ""}
+          ${buttons.length ? `<div class="button-row">${buttons.map((button, index) => `
+            <button class="${button.secondary ? "secondary" : ""}" data-overlay-button="${index}">
+              ${button.text}
+            </button>
+          `).join("")}</div>` : ""}
         </div>
       `;
       overlay.style.display = "flex";
-      if (buttonText) document.getElementById("overlayBtn").addEventListener("click", buttonHandler);
+
+      buttons.forEach((button, index) => {
+        const el = overlay.querySelector(`[data-overlay-button="${index}"]`);
+        if (el && typeof button.onClick === "function") {
+          el.addEventListener("click", button.onClick);
+        }
+      });
+    }
+
+    async function fetchLeaderboard() {
+      if (!hasSupabaseConfig()) {
+        return {
+          error: "Add your Supabase URL and publishable anon key in the config section first."
+        };
+      }
+
+      try {
+        const response = await fetch(
+          `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?select=player_name,score&order=score.desc,created_at.asc&limit=10`,
+          {
+            headers: {
+              apikey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+            }
+          }
+        );
+
+        const data = await response.json();
+        if (!response.ok) {
+          return {
+            error: data?.message || data?.error || "Unable to load leaderboard."
+          };
+        }
+
+        return { data: Array.isArray(data) ? data : [] };
+      } catch (error) {
+        return { error: error.message || "Unable to load leaderboard." };
+      }
+    }
+
+    async function submitScore(playerName, finalScore) {
+      if (!hasSupabaseConfig()) {
+        return {
+          error: "Add your Supabase URL and publishable anon key in the config section first."
+        };
+      }
+
+      try {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            Prefer: "return=minimal"
+          },
+          body: JSON.stringify([
+            {
+              player_name: playerName,
+              score: finalScore
+            }
+          ])
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          return {
+            error: errorData?.message || errorData?.error || "Unable to save score."
+          };
+        }
+
+        return { success: true };
+      } catch (error) {
+        return { error: error.message || "Unable to save score." };
+      }
+    }
+
+    async function showLeaderboardPanel() {
+      overlay.innerHTML = `
+        <div class="panel">
+          <h2>Leaderboard</h2>
+          <p>Loading top scores...</p>
+          <div class="leaderboard-status"></div>
+          <div class="button-row">
+            <button class="secondary" id="leaderboardBackBtn">Back</button>
+            <button id="leaderboardPlayBtn">Play</button>
+          </div>
+        </div>
+      `;
+      overlay.style.display = "flex";
+
+      document.getElementById("leaderboardBackBtn").addEventListener("click", showStartPanel);
+      document.getElementById("leaderboardPlayBtn").addEventListener("click", startGame);
+
+      const result = await fetchLeaderboard();
+      const panel = overlay.querySelector(".panel");
+      if (!panel) return;
+
+      const buttons = `
+        <div class="button-row">
+          <button class="secondary" id="leaderboardBackBtn">Back</button>
+          <button id="leaderboardPlayBtn">Play</button>
+        </div>
+      `;
+
+      if (result.error) {
+        panel.innerHTML = `
+          <h2>Leaderboard</h2>
+          <p>${escapeHtml(result.error)}</p>
+          <p>Create the table and RLS policy first, then this screen will show the top 10 scores.</p>
+          ${buttons}
+        `;
+      } else {
+        const rows = result.data.length
+          ? result.data.map((entry, index) => `
+              <tr>
+                <td>#${index + 1}</td>
+                <td>${escapeHtml(entry.player_name)}</td>
+                <td>${Number(entry.score || 0).toLocaleString()}</td>
+              </tr>
+            `).join("")
+          : `
+              <tr>
+                <td colspan="3">No scores yet. Be the first on the board.</td>
+              </tr>
+            `;
+
+        panel.innerHTML = `
+          <h2>Leaderboard</h2>
+          <p>Top 10 players</p>
+          <table class="leaderboard-table">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Player</th>
+                <th>Score</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+          ${buttons}
+        `;
+      }
+
+      document.getElementById("leaderboardBackBtn").addEventListener("click", showStartPanel);
+      document.getElementById("leaderboardPlayBtn").addEventListener("click", startGame);
     }
 
     function showStartPanel() {
@@ -669,39 +898,69 @@
           "Every 5,000 points gives you a bonus life.",
           "Press <strong>P</strong> to pause."
         ],
-        "Play",
-        startGame
+        [
+          { text: "Play", onClick: startGame },
+          { text: "Leaderboard", onClick: showLeaderboardPanel, secondary: true }
+        ]
       );
     }
 
-    function startGame() {
-      resetGame();
-      overlay.style.display = "none";
-      gameRunning = true;
-      isPaused = false;
-      startStageMusic();
-      bgVideo.play().catch(() => {});
-      bossBgVideo.play().catch(() => {});
-      cancelAnimationFrame(animationId);
-      lastTimestamp = 0;
-      accumulator = 0;
-      loop();
-    }
+    function showScoreSubmissionPanel(win) {
+      const savedName = getSavedPlayerName();
+      overlay.innerHTML = `
+        <div class="panel">
+          <h2>${win ? "You Win" : "Game Over"}</h2>
+          <p>${win ? "You cleared all four stages and defeated the boss." : "You were overwhelmed by enemy fire."}</p>
+          <p>Final Score: ${score.toLocaleString()}</p>
+          <p>Enter your player name to save your score to the leaderboard.</p>
+          <input id="playerNameInput" type="text" maxlength="20" placeholder="Player name" value="${escapeHtml(savedName)}" />
+          <div class="leaderboard-status" id="submitStatus"></div>
+          <div class="button-row">
+            <button id="submitScoreBtn">Save Score</button>
+            <button class="secondary" id="skipScoreBtn">Skip</button>
+            <button class="secondary" id="viewLeaderboardBtn">Leaderboard</button>
+          </div>
+        </div>
+      `;
+      overlay.style.display = "flex";
 
-    function pauseGame() {
-      if (!gameRunning || isPaused) return;
-      isPaused = true;
-      playPauseSound();
-      stageMusic.pause();
-      bossMusic.pause();
-      renderOverlay("Paused", ["Press <strong>P</strong> to resume."], "Resume", resumeGame);
-    }
+      const input = document.getElementById("playerNameInput");
+      const status = document.getElementById("submitStatus");
 
-    function resumeGame() {
-      if (!gameRunning || !isPaused) return;
-      isPaused = false;
-      overlay.style.display = "none";
-      playCurrentMusic();
+      document.getElementById("submitScoreBtn").addEventListener("click", async () => {
+        if (lastSubmittedScore === score) {
+          status.textContent = "This score was already submitted.";
+          return;
+        }
+
+        const trimmedName = input.value.trim().replace(/\s+/g, " ").slice(0, 20);
+        if (!trimmedName) {
+          status.textContent = "Enter a player name first.";
+          return;
+        }
+
+        status.textContent = "Saving score...";
+        savePlayerName(trimmedName);
+
+        const result = await submitScore(trimmedName, score);
+        if (result.error) {
+          status.textContent = result.error;
+          return;
+        }
+
+        lastSubmittedScore = score;
+        status.textContent = "Score saved.";
+      });
+
+      document.getElementById("skipScoreBtn").addEventListener("click", showStartPanel);
+      document.getElementById("viewLeaderboardBtn").addEventListener("click", showLeaderboardPanel);
+
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          document.getElementById("submitScoreBtn").click();
+        }
+      });
     }
 
     function endGame(win) {
@@ -710,13 +969,7 @@
       cancelAnimationFrame(animationId);
       stopAudio(stageMusic);
       stopAudio(bossMusic);
-
-      renderOverlay(
-        win ? "You Win" : "Game Over",
-        [win ? "You cleared all four stages and defeated the boss." : "You were overwhelmed by enemy fire.", `Final Score: ${score}`],
-        "Play Again",
-        showStartPanel
-      );
+      showScoreSubmissionPanel(win);
     }
 
     window.addEventListener("keydown", (e) => {
@@ -1679,6 +1932,9 @@
       drawScene();
       animationId = requestAnimationFrame(loop);
     }
+
+    const initialLeaderboardBtn = document.getElementById("leaderboardMenuBtn");
+    if (initialLeaderboardBtn) initialLeaderboardBtn.addEventListener("click", showLeaderboardPanel);
 
     applyVolume(parseInt(volumeSlider.value, 10));
     volumeSlider.addEventListener("input", () => applyVolume(parseInt(volumeSlider.value, 10)));
